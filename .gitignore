@@ -1,18 +1,22 @@
-# Build and Release Folders
-bin-debug/
-bin-release/
-[Oo]bj/
-[Bb]in/
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
 
-# Other files and folders
-.settings/
+# Virtual environments
+venv/
+.env
 
-# Executables
-*.swf
-*.air
-*.ipa
-*.apk
+# Logs
+*.log
 
-# Project files, i.e. `.project`, `.actionScriptProperties` and `.flexProperties`
-# should NOT be excluded as they contain compiler settings and other important
-# information for Eclipse / Flash Builder.
+# OS-specific files
+.DS_Store
+
+# IDEs and editors
+.vscode/
+.idea/
+
+# Docker files (optional)
+# Uncomment if you prefer to exclude Docker-related files
+# Dockerfile
+# docker-compose.yml
