@@ -1,4 +1,27 @@
-# Azure Blob Storage to SQL Database Upsert
+ Azure Blob Storage to SQL Database Upsert
+
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![Python](https://img.shields.io/badge/python-3.11-blue.svg)
+![Docker](https://img.shields.io/badge/docker-enabled-blue.svg)
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Features](#features)
+- [Architecture](#architecture)
+- [Prerequisites](#prerequisites)
+- [Installation](#installation)
+- [Configuration](#configuration)
+  - [Environment Variables](#environment-variables)
+  - [Required Variables](#required-variables)
+  - [Using a `.env` File (Optional)](#using-a-env-file-optional)
+- [Usage](#usage)
+- [Deployment](#deployment)
+  - [Building the Docker Image](#building-the-docker-image)
+  - [Running the Docker Container Locally](#running-the-docker-container-locally)
+- [Contributing](#contributing)
+- [License](#license)
+- [Contact](#contact)
 
 ## Overview
 
@@ -6,26 +29,34 @@ This Python application extracts PDF file information from Azure Blob Storage an
 
 ## Features
 
-- **Azure Managed Identity Authentication:** Securely authenticate with Azure Blob Storage and Azure SQL Database without managing secrets.
-- **Dockerized Application:** Easily containerize and deploy the application.
-- **Azure Kubernetes Service (AKS) Deployment:** Deploy the application to a scalable Kubernetes cluster.
-- **Configurable Extraction Patterns and Target Tables:** Customize regex patterns for file extraction and specify target SQL tables via environment variables.
-- **Bulk Upsert Operations:** Efficiently handle inserts, updates, and deletions in the SQL Database using a temporary staging table.
+- **Azure Managed Identity Authentication**
+- **Dockerized Application**
+- **Azure Kubernetes Service (AKS) Deployment**
+- **Configurable Extraction Patterns and Target Tables**
+- **Bulk Upsert Operations**
+
+## Architecture
+
+1. **Azure Blob Storage**: Source for PDF files.
+2. **Azure SQL Database**: Target for upserted data.
+3. **Python Script**: Handles file extraction and database upserts.
+4. **Docker Container**: Containerizes the application.
+5. **AKS Deployment**: Deploys the containerized app on AKS.
 
 ## Prerequisites
 
-- **Azure Account:** Access to Azure resources like Blob Storage, SQL Database, and AKS.
-- **Azure CLI:** Installed and configured.
-- **Docker:** Installed for building and pushing Docker images.
-- **Kubectl:** Installed and configured to interact with your AKS cluster.
-- **Git:** For version control.
+- **Python 3.11**
+- **Docker**
+- **Azure CLI**
+- **Kubectl**
+- **Azure Account**
 
-## Setup Instructions
+## Installation
 
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/arqs-io/azure-blob-mssql-sync.git
+git clone https://github.com/your-username/your-repo.git
 cd your-repo
 ```
 
@@ -43,162 +74,75 @@ TARGET_SQL_TABLE=clients.products_blob_pdfs
 EXTRACTION_PATTERN=([A-Za-z0-9]{12})\.pdf$
 ```
 
-**Note:** Since the application uses Azure Managed Identity, you do not need to include `DB_USER` and `DB_PASSWORD`.
+## Configuration
 
-### 3. Install Python Dependencies
+### Environment Variables
 
-Ensure you have Python 3.11 installed. Then, install the required packages:
+| Variable | Description |
+|----------|-------------|
+| `AZURE_STORAGE_ACCOUNT_NAME` | Azure Storage account name |
+| `AZURE_BLOB_CONTAINER_NAME` | Name of the Azure Blob container |
+| `DB_SERVER` | SQL server URL |
+| `DB_NAME` | Name of the target database |
+| `DB_DRIVER` | ODBC driver for SQL Server |
+| `TARGET_SQL_TABLE` | SQL table for upserting data |
+| `EXTRACTION_PATTERN` | Regex pattern for extracting file information |
+
+### Using a `.env` File (Optional)
+
+Instead of setting environment variables manually, you can use a `.env` file as shown in the configuration step above.
+
+## Usage
+
+Run the script locally with:
 
 ```bash
-pip install -r requirements.txt
+python src/your_script.py
 ```
 
-### 4. Build the Docker Image
+## Deployment
 
-Replace `your-dockerhub-username` and `your-image-name` with your Docker Hub username and desired image name.
+### Building the Docker Image
 
 ```bash
 docker build -t your-dockerhub-username/your-image-name:tag .
 ```
 
-**Example:**
+### Running the Docker Container Locally
 
 ```bash
-docker build -t johndoe/blob-sql-upsert:v1.0 .
+docker run --env-file .env your-dockerhub-username/your-image-name:tag
 ```
 
-### 5. Push the Docker Image to a Container Registry
+## Contributing
 
-#### Using Docker Hub:
+1. **Fork the Repository**
+2. **Create a New Branch**
 
 ```bash
-docker login
-docker push your-dockerhub-username/your-image-name:tag
+git checkout -b feature/YourFeatureName
 ```
 
-#### Using Azure Container Registry (ACR):
-
-1. **Log in to ACR:**
-
-    ```bash
-    az acr login --name your-acr-name
-    ```
-
-2. **Tag the image:**
-
-    ```bash
-    docker tag your-dockerhub-username/your-image-name:tag your-acr-name.azurecr.io/your-image-name:tag
-    ```
-
-3. **Push the image:**
-
-    ```bash
-    docker push your-acr-name.azurecr.io/your-image-name:tag
-    ```
-
-### 6. Set Up Azure Workload Identity
-
-Follow the [Azure Workload Identity documentation](https://learn.microsoft.com/azure/aks/workload-identity-overview) to configure Azure Workload Identity for your AKS cluster. Ensure that:
-
-- An Azure AD Managed Identity is created and assigned the necessary roles (e.g., Storage Blob Data Reader, SQL Database roles).
-- A Kubernetes Service Account is created and annotated with the Managed Identity details.
-
-### 7. Deploy to AKS
-
-Apply the Kubernetes manifests (`namespace.yaml`, `service-account.yaml`, `deployment.yaml`) to deploy your application.
+3. **Make Your Changes**
+4. **Commit Your Changes**
 
 ```bash
-kubectl apply -f namespace.yaml
-kubectl apply -f service-account.yaml
-kubectl apply -f deployment.yaml
+git commit -m "Add feature XYZ"
 ```
 
-### 8. Verify the Deployment
-
-Check the status of your pods:
+5. **Push to Your Fork**
 
 ```bash
-kubectl get pods -n blob-sql-upsert
+git push origin feature/YourFeatureName
 ```
 
-View logs for troubleshooting:
-
-```bash
-kubectl logs <pod-name> -n blob-sql-upsert
-```
-
-Replace `<pod-name>` with the name of your running pod.
-
-## Usage
-
-Once deployed, the application will:
-
-1. **Authenticate with Azure Blob Storage** using Managed Identity.
-2. **List all PDF files** in the specified container.
-3. **Extract relevant information** based on the provided regex pattern.
-4. **Authenticate with Azure SQL Database** using Managed Identity.
-5. **Upsert the extracted data** into the specified SQL table.
-
-## Customization
-
-- **Extraction Pattern:** Modify the `EXTRACTION_PATTERN` in the `.env` file or Kubernetes ConfigMap to change how filenames are parsed.
-- **Target SQL Table:** Change the `TARGET_SQL_TABLE` environment variable to specify a different SQL table for upserting data.
+6. **Create a Pull Request**
 
 ## License
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 
-## Contributing
-
-Contributions are welcome! Please open an issue or submit a pull request for any enhancements or bug fixes.
-
 ## Contact
 
 For any questions or support, please contact [clem@arqs.io](mailto:clem@arqs.io).
-
----
-
-## Customization Notes
-
-- **Repository URL:** Replace `https://github.com/arqs-io/azure-blob-mssql-sync.git` with your actual repository URL.
-- **Docker Image Names:** Replace placeholders with your actual Docker Hub or ACR details.
-- **Contact Information:** Update the contact email to your own.
-
-## LICENSE (MIT License)
-
-Create a `LICENSE` file in your project root with the following content. Replace `[YEAR]` with the current year and `[YOUR NAME]` with your name or your organization's name.
-
-```text
-MIT License
-
-Copyright (c) [YEAR] [YOUR NAME]
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-```
-
-
-```text
-MIT License
-
-Copyright (c) 2024 John Doe
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-...
-```
 
