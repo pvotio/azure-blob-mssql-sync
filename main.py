@@ -79,7 +79,7 @@ def upsert_using_temp_staging(df, table_name):
     """
     db_server = os.getenv("DB_SERVER")
     db_name = os.getenv("DB_NAME")
-    db_driver = os.getenv("DB_DRIVER", "ODBC Driver 17 for SQL Server")  # Default driver
+    db_driver = os.getenv("DB_DRIVER", "ODBC Driver 18 for SQL Server")  # Default driver
 
     if not all([db_server, db_name]):
         print("Database server or name is not set in environment variables.")
