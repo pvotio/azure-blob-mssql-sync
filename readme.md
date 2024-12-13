@@ -1,4 +1,4 @@
-## Azure Blob Storage to SQL Database Upsert
+### Azure Blob Storage to SQL Database Upsert
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.11-blue.svg)
@@ -33,7 +33,7 @@ This Python application extracts PDF file information from Azure Blob Storage an
 - **Dockerized Application**
 - **Azure Kubernetes Service (AKS) Deployment**
 - **Configurable Extraction Patterns and Target Tables**
-- **Bulk Upsert Operations**
+- **Bulk Upsert Operations with Temporary Tables**: Leverages temporary SQL tables for efficient data processing that automatically cleans up after the operation.
 
 ## Architecture
 
@@ -67,8 +67,8 @@ Create a `.env` file in the project root directory with the following variables:
 ```env
 AZURE_STORAGE_ACCOUNT_NAME=your_storage_account_name
 AZURE_BLOB_CONTAINER_NAME=your_blob_container_name
-DB_SERVER=your_sql_server.database.windows.net
-DB_NAME=your_database_name
+MSSQL_SERVER=your_sql_server.database.windows.net
+MSSQL_DATABASE=your_database_name
 DB_DRIVER=ODBC Driver 18 for SQL Server
 TARGET_SQL_TABLE=clients.products_blob_pdfs
 EXTRACTION_PATTERN=([A-Za-z0-9]{12})\.pdf$
@@ -82,8 +82,8 @@ EXTRACTION_PATTERN=([A-Za-z0-9]{12})\.pdf$
 |----------|-------------|
 | `AZURE_STORAGE_ACCOUNT_NAME` | Azure Storage account name |
 | `AZURE_BLOB_CONTAINER_NAME` | Name of the Azure Blob container |
-| `DB_SERVER` | SQL server URL |
-| `DB_NAME` | Name of the target database |
+| `MSSQL_SERVER` | SQL server URL |
+| `MSSQL_DATABASE` | Name of the target database |
 | `DB_DRIVER` | ODBC driver for SQL Server |
 | `TARGET_SQL_TABLE` | SQL table for upserting data |
 | `EXTRACTION_PATTERN` | Regex pattern for extracting file information |
@@ -145,4 +145,5 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 ## Contact
 
 For any questions or support, please contact [clem@arqs.io](mailto:clem@arqs.io).
+
 
