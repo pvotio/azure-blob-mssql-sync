@@ -1,20 +1,23 @@
 import os
 import re
+import struct
 import pandas as pd
 from azure.storage.blob import BlobServiceClient
 from dotenv import load_dotenv
-from sqlalchemy import create_engine, text
-from sqlalchemy.exc import SQLAlchemyError
 from datetime import datetime
-from azure.identity import ManagedIdentityCredential, DefaultAzureCredential
+from azure.identity import DefaultAzureCredential
+import pyodbc
 
-# Load environment variables once
 load_dotenv()
 
+def get_pyodbc_attrs(access_token: str) -> dict:
+    # Same as proven script
+    SQL_COPT_SS_ACCESS_TOKEN = 1256
+    enc_token = access_token.encode('utf-16-le')
+    token_struct = struct.pack('=i', len(enc_token)) + enc_token
+    return {SQL_COPT_SS_ACCESS_TOKEN: token_struct}
+
 def extract_extracted_name_folder_and_filename(blob_path, pattern):
-    """
-    Extract extracted_name, folder name, and filename from the blob path using the provided regex pattern.
-    """
     folder_name, file_name = os.path.split(blob_path)
     extracted_name_match = re.search(pattern, file_name)
     extracted_name = extracted_name_match.group(1) if extracted_name_match else None
@@ -25,21 +28,15 @@ def extract_extracted_name_folder_and_filename(blob_path, pattern):
     }
 
 def list_pdfs_from_blob_storage():
-    """
-    Connects to Azure Blob Storage using Managed Identity, lists all PDF files in the specified container,
-    and extracts extracted_name, folder name, and file name for each blob.
-    """
     storage_account_name = os.getenv("AZURE_STORAGE_ACCOUNT_NAME")
     container_name = os.getenv("AZURE_BLOB_CONTAINER_NAME")
 
     if not storage_account_name or not container_name:
         print("Azure storage account name or container name is not set in environment variables.")
-        return pd.DataFrame()  # Return empty DataFrame
+        return pd.DataFrame()
 
     try:
-        # Construct the Blob service URL
         blob_service_url = f"https://{storage_account_name}.blob.core.windows.net"
-        # Use DefaultAzureCredential which works with Managed Identity
         credential = DefaultAzureCredential()
         blob_service_client = BlobServiceClient(account_url=blob_service_url, credential=credential)
         container_client = blob_service_client.get_container_client(container_name)
@@ -60,7 +57,6 @@ def list_pdfs_from_blob_storage():
     df = pd.DataFrame(extracted_data)
     df.dropna(subset=['extracted_name'], inplace=True)
 
-    # Ensure uniqueness of extracted_name + folder_name
     before_dropping = len(df)
     df.drop_duplicates(subset=['extracted_name', 'folder_name'], inplace=True)
     after_dropping = len(df)
@@ -73,18 +69,14 @@ def list_pdfs_from_blob_storage():
     return df
 
 def upsert_using_temp_staging(df, table_name):
-    """
-    Upsert a DataFrame to an MSSQL table using SQLAlchemy and a temporary staging table.
-    Handles inserts, updates, and deletes in bulk.
-    """
-    db_server = os.getenv("DB_SERVER")
-    db_name = os.getenv("DB_NAME")
-    db_driver = os.getenv("DB_DRIVER", "ODBC Driver 18 for SQL Server")  # Default driver
+    db_server = os.getenv("MSSQL_SERVER")
+    db_name = os.getenv("MSSQL_DATABASE")
 
     if not all([db_server, db_name]):
         print("Database server or name is not set in environment variables.")
         return
 
+    # Obtain Azure AD token (as in the proven script)
     try:
         credential = DefaultAzureCredential()
         token = credential.get_token("https://database.windows.net/.default")
@@ -94,76 +86,72 @@ def upsert_using_temp_staging(df, table_name):
         print(str(e))
         return
 
-    connection_string = f"mssql+pyodbc://@{db_server}/{db_name}?driver={db_driver}&Authentication=ActiveDirectoryAccessToken"
+    # Construct connection URL as in proven script - no Authentication, no UID/PWD
+    connection_url = (
+        f"DRIVER={{ODBC Driver 18 for SQL Server}};"
+        f"SERVER={db_server};"
+        f"DATABASE={db_name};"
+        f"Encrypt=yes;"
+        f"TrustServerCertificate=no;"
+    )
+
+    attrs = get_pyodbc_attrs(access_token)
 
     try:
-        engine = create_engine(
-            connection_string,
-            connect_args={
-                "azure_access_token": access_token
-            },
-            fast_executemany=True  # Enable fast executemany for bulk inserts
-        )
-    except Exception as e:
-        print("Failed to create SQLAlchemy engine:")
+        # Connect just like the proven script
+        with pyodbc.connect(connection_url, attrs_before=attrs) as connection:
+            connection.autocommit = False
+            cursor = connection.cursor()
+
+            # Create temporary staging table
+            staging_table_name = "#staging_blob_pdfs"
+            create_table_sql = f"""
+            CREATE TABLE {staging_table_name} (
+                extracted_name VARCHAR(12),
+                folder_name VARCHAR(255),
+                file_name VARCHAR(255),
+                timestamp_created_utc DATETIME,
+                PRIMARY KEY (extracted_name, folder_name)
+            );
+            """
+            cursor.execute(create_table_sql)
+            print(f"Temporary staging table {staging_table_name} created.")
+
+            current_utc = datetime.utcnow()
+            df['timestamp_created_utc'] = pd.Timestamp(current_utc)
+
+            # Insert records into staging table
+            insert_sql = f"""
+            INSERT INTO {staging_table_name} (extracted_name, folder_name, file_name, timestamp_created_utc)
+            VALUES (?, ?, ?, ?);
+            """
+            records = df[['extracted_name', 'folder_name', 'file_name', 'timestamp_created_utc']].values.tolist()
+            cursor.executemany(insert_sql, records)
+            print(f"Inserted {len(records)} records into temporary staging table.")
+
+            # Perform MERGE operation
+            merge_sql = f"""
+            MERGE INTO {table_name} AS target
+            USING {staging_table_name} AS source
+            ON target.extracted_name = source.extracted_name AND target.folder_name = source.folder_name
+            WHEN MATCHED THEN 
+                UPDATE SET 
+                    file_name = source.file_name, 
+                    timestamp_created_utc = source.timestamp_created_utc
+            WHEN NOT MATCHED BY TARGET THEN
+                INSERT (extracted_name, folder_name, file_name, timestamp_created_utc) 
+                VALUES (source.extracted_name, source.folder_name, source.file_name, source.timestamp_created_utc)
+            WHEN NOT MATCHED BY SOURCE THEN
+                DELETE;
+            """
+            cursor.execute(merge_sql)
+            print("MERGE operation completed successfully.")
+
+            connection.commit()
+
+    except pyodbc.Error as e:
+        print("An error occurred during the upsert:")
         print(str(e))
-        return
-
-    staging_table_name = "#staging_products_blob_pdfs"
-
-    try:
-        with engine.connect() as connection:
-            with connection.begin():
-                # Create temporary staging table
-                create_table_sql = f"""
-                CREATE TABLE {staging_table_name} (
-                    extracted_name VARCHAR(12),
-                    folder_name VARCHAR(255),
-                    file_name VARCHAR(255),
-                    timestamp_created_utc DATETIME,
-                    PRIMARY KEY (extracted_name, folder_name)
-                );
-                """
-                connection.execute(text(create_table_sql))
-                print(f"Temporary staging table {staging_table_name} created with composite primary key (extracted_name, folder_name).")
-
-                # Add timestamp_created_utc column
-                current_utc = datetime.utcnow()
-                df['timestamp_created_utc'] = pd.Timestamp(current_utc)
-
-                # Convert DataFrame to list of dictionaries
-                records = df.to_dict(orient='records')
-
-                # Bulk insert into temporary table
-                insert_sql = f"""
-                INSERT INTO {staging_table_name} (extracted_name, folder_name, file_name, timestamp_created_utc)
-                VALUES (:extracted_name, :folder_name, :file_name, :timestamp_created_utc);
-                """
-                connection.execute(text(insert_sql), records)
-                print(f"Inserted {len(records)} unique records into temporary staging table.")
-
-                # Perform MERGE operation
-                merge_sql = f"""
-                MERGE INTO {table_name} AS target
-                USING {staging_table_name} AS source
-                ON target.extracted_name = source.extracted_name AND target.folder_name = source.folder_name
-                WHEN MATCHED THEN 
-                    UPDATE SET 
-                        file_name = source.file_name, 
-                        timestamp_created_utc = source.timestamp_created_utc
-                WHEN NOT MATCHED BY TARGET THEN
-                    INSERT (extracted_name, folder_name, file_name, timestamp_created_utc) 
-                    VALUES (source.extracted_name, source.folder_name, source.file_name, source.timestamp_created_utc)
-                WHEN NOT MATCHED BY SOURCE THEN
-                    DELETE;
-                """
-                connection.execute(text(merge_sql))
-                print("MERGE operation completed successfully with composite key (extracted_name, folder_name).")
-    except SQLAlchemyError as e:
-        print("An error occurred during the upsert using temporary staging table:")
-        print(str(e))
-    finally:
-        engine.dispose()
 
 if __name__ == "__main__":
     df = list_pdfs_from_blob_storage()
