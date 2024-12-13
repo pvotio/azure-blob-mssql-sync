@@ -4,3 +4,4 @@ sqlalchemy
 pyodbc
 pandas
 python-dotenv
+python-decouple
