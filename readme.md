@@ -1,4 +1,5 @@
-### Azure Blob Storage to SQL Database Upsert
+
+# Azure Blob Storage to SQL Database Upsert
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.11-blue.svg)
@@ -56,8 +57,8 @@ This Python application extracts PDF file information from Azure Blob Storage an
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/your-username/your-repo.git
-cd your-repo
+git clone https://github.com/arqs-io/azure-blob-mssql-sync.git
+cd azure-blob-mssql-sync
 ```
 
 ### 2. Configure Environment Variables
@@ -70,7 +71,7 @@ AZURE_BLOB_CONTAINER_NAME=your_blob_container_name
 MSSQL_SERVER=your_sql_server.database.windows.net
 MSSQL_DATABASE=your_database_name
 DB_DRIVER=ODBC Driver 18 for SQL Server
-TARGET_SQL_TABLE=clients.products_blob_pdfs
+TARGET_SQL_TABLE=etl.my_table
 EXTRACTION_PATTERN=([A-Za-z0-9]{12})\.pdf$
 ```
 
