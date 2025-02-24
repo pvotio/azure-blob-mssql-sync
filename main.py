@@ -19,7 +19,7 @@ def get_pyodbc_attrs(access_token: str) -> dict:
 
 def extract_extracted_name_folder_and_filename(blob_path, pattern):
     folder_name, file_name = os.path.split(blob_path)
-    extracted_name_match = re.search(pattern, file_name)
+    extracted_name_match = re.search(pattern, file_name, re.IGNORECASE)
     extracted_name = extracted_name_match.group(1) if extracted_name_match else None
     return {
         'extracted_name': extracted_name,
