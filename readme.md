@@ -145,6 +145,6 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 
 ## Contact
 
-For any questions or support, please contact [clem@arqs.io](mailto:clem@arqs.io).
+For any questions or support, please contact [clem@pvot.io](mailto:clem@pvot.io).
 
 
